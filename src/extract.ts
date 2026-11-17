@@ -94,7 +94,8 @@ export function isAmbiguous(item: FeedItem, found: ExtractedEvent[]): boolean {
 
 /* ---------- LLM fallback ---------- */
 
-export const MODEL = '@cf/meta/llama-3.1-8b-instruct-fp8';
+// Must support response_format json_schema (llama-3.1-8b-instruct-fp8 does not: error 5025).
+export const MODEL = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
 
 const SCHEMA = {
 	type: 'object',
