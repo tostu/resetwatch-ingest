@@ -1,0 +1,20 @@
+{
+	"name": "resetwatch-ingest",
+	"version": "0.0.1",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"dev": "wrangler dev --test-scheduled",
+		"deploy": "wrangler deploy",
+		"gen": "wrangler types",
+		"check": "wrangler types --check && tsc --noEmit",
+		"test": "vitest --run",
+		"db:schema:local": "wrangler d1 execute resetwatch --local --file=schema.sql",
+		"db:schema:remote": "wrangler d1 execute resetwatch --remote --file=schema.sql"
+	},
+	"devDependencies": {
+		"typescript": "^6.0.3",
+		"vitest": "^5.1.0",
+		"wrangler": "^4.162.0"
+	}
+}
