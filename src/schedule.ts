@@ -53,7 +53,7 @@ export function dailySlot(now: Date): boolean {
 
 /**
  * @param launchDates LA dates (YYYY-MM-DD) of season/event starts.
- * Launch day: every run (cron is */5) all day.
+ * Launch day: every run (cron fires every 5 min) all day.
  */
 export function shouldRun(now: Date, launchDates: string[]): boolean {
 	const c = clockGate(now);
