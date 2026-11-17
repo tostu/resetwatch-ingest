@@ -139,7 +139,7 @@ export function validateLlm(raw: unknown, pub: Date): ExtractedEvent[] {
 			if (isNaN(en) || en < s || en - s > 366 * 86_400_000) continue;
 			end = ends_at;
 		}
-		out.push({ kind, name: name.trim().slice(0, 120), starts_at, ends_at: end, raw_text: 'llm' });
+		out.push({ kind, name: eventName(name), starts_at, ends_at: end, raw_text: 'llm' });
 	}
 	return out;
 }
@@ -148,7 +148,10 @@ export async function llmExtract(ai: Ai, item: FeedItem): Promise<ExtractedEvent
 	const prompt =
 		`Post published ${item.pubDate}. Title: ${item.title}\n\n${item.text.slice(0, 6000)}\n\n` +
 		'Extract Overwatch season starts/ends and limited-time events with dates. ' +
-		'Use UTC ISO 8601 like 2026-12-08T19:00:00Z. Return {"events":[]} if none stated.';
+		'Use UTC ISO 8601 like 2026-12-08T19:00:00Z. Return {"events":[]} if none stated. ' +
+		'The "name" must be a short display title with no marketing filler: drop leading phrases like ' +
+		'"Everything New in Overwatch", "Everything You Need to Know About", "Overwatch 2:", "Patch Notes:". ' +
+		'Example: "Everything New in Overwatch Season 4: Heroes of Busan" -> "Season 4: Heroes of Busan".';
 	try {
 		const res = (await ai.run(MODEL as keyof AiModels, {
 			messages: [
@@ -173,8 +176,7 @@ export async function llmExtract(ai: Ai, item: FeedItem): Promise<ExtractedEvent
 
 export async function extract(ai: Ai, item: FeedItem): Promise<ExtractedEvent[]> {
 	if (!KEYWORD_GATE.test(item.title + ' ' + item.text)) return [];
-	const found = regexExtract(item);
-	if (!isAmbiguous(item, found)) return found;
+	// LLM first so names get cleaned; regex is the fallback.
 	const viaLlm = await llmExtract(ai, item);
-	return viaLlm.length ? viaLlm : found;
+	return viaLlm.length ? viaLlm : regexExtract(item);
 }
