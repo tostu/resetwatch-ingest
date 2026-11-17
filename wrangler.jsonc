@@ -10,7 +10,7 @@
 		{
 			"binding": "DB",
 			"database_name": "resetwatch",
-			"database_id": "REPLACE_AFTER_d1_create"
+			"database_id": "9b069aa9-30a5-4f9a-bc05-72be9e0501ec"
 		}
 	],
 	"ai": { "binding": "AI" },
