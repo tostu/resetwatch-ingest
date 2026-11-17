@@ -94,7 +94,7 @@ export function isAmbiguous(item: FeedItem, found: ExtractedEvent[]): boolean {
 
 /* ---------- LLM fallback ---------- */
 
-export const MODEL = '@cf/meta/llama-3.1-8b-instruct';
+export const MODEL = '@cf/meta/llama-3.1-8b-instruct-fp8';
 
 const SCHEMA = {
 	type: 'object',
