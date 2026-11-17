@@ -16,12 +16,26 @@ async function launchDates(db: D1Database, now: Date): Promise<string[]> {
 	return results.map((r) => laDate(r.starts_at));
 }
 
-async function run(env: Env, now: Date): Promise<void> {
-	const gate = clockGate(now);
-	const dates = gate === true ? [] : await launchDates(env.DB, now);
-	if (!shouldRun(now, dates)) return;
+/** True once per deployed version: first cron tick after a deploy ignores gates. */
+async function firstRunOfDeploy(env: Env): Promise<boolean> {
+	const id = env.CF_VERSION_METADATA.id;
+	const row = await env.DB.prepare("SELECT value FROM kv WHERE key = 'deploy_version'").first<{ value: string }>();
+	if (row?.value === id) return false;
+	await env.DB.prepare("INSERT OR REPLACE INTO kv (key, value) VALUES ('deploy_version', ?)").bind(id).run();
+	return true;
+}
 
-	const etagRow = await env.DB.prepare("SELECT value FROM kv WHERE key = 'feed_etag'").first<{ value: string }>();
+async function run(env: Env, now: Date): Promise<void> {
+	const force = await firstRunOfDeploy(env);
+	if (!force) {
+		const gate = clockGate(now);
+		const dates = gate === true ? [] : await launchDates(env.DB, now);
+		if (!shouldRun(now, dates)) return;
+	}
+
+	const etagRow = force
+		? null
+		: await env.DB.prepare("SELECT value FROM kv WHERE key = 'feed_etag'").first<{ value: string }>();
 	const feed = await fetchFeed(env.FEED_URL, etagRow?.value ?? null);
 	if (feed.status === 'unchanged') return;
 
