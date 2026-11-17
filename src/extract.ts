@@ -107,7 +107,7 @@ const SCHEMA = {
 					kind: { type: 'string', enum: ['season_start', 'season_end', 'event'] },
 					name: { type: 'string' },
 					starts_at: { type: 'string' },
-					ends_at: { type: ['string', 'null'] }
+					ends_at: { type: 'string' }
 				},
 				required: ['kind', 'name', 'starts_at']
 			}
@@ -133,8 +133,8 @@ export function validateLlm(raw: unknown, pub: Date): ExtractedEvent[] {
 		const s = Date.parse(starts_at);
 		if (isNaN(s) || Math.abs(s - pub.getTime()) > 366 * 86_400_000) continue;
 		let end: string | null = null;
-		if (typeof ends_at === 'string') {
-			if (!ISO.test(ends_at)) continue;
+		if (typeof ends_at === 'string' && ISO.test(ends_at)) {
+			// non-ISO ends_at ("", "null") skipped above -> treated as no end
 			const en = Date.parse(ends_at);
 			if (isNaN(en) || en < s || en - s > 366 * 86_400_000) continue;
 			end = ends_at;
@@ -146,7 +146,7 @@ export function validateLlm(raw: unknown, pub: Date): ExtractedEvent[] {
 
 export async function llmExtract(ai: Ai, item: FeedItem): Promise<ExtractedEvent[]> {
 	const prompt =
-		`Post published ${item.pubDate}. Title: ${item.title}\n\n${item.text}\n\n` +
+		`Post published ${item.pubDate}. Title: ${item.title}\n\n${item.text.slice(0, 6000)}\n\n` +
 		'Extract Overwatch season starts/ends and limited-time events with dates. ' +
 		'Use UTC ISO 8601 like 2026-12-08T19:00:00Z. Return {"events":[]} if none stated.';
 	try {
@@ -162,7 +162,11 @@ export async function llmExtract(ai: Ai, item: FeedItem): Promise<ExtractedEvent
 		const parsed = typeof r === 'string' ? JSON.parse(r) : r;
 		return validateLlm(parsed, new Date(item.pubDate));
 	} catch (err) {
-		console.error('llm failed', err);
+		console.error('llm failed', {
+				model: MODEL,
+				promptChars: prompt.length,
+				message: err instanceof Error ? err.message : String(err)
+			});
 		return [];
 	}
 }
