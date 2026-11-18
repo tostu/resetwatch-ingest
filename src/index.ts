@@ -49,15 +49,21 @@ async function run(env: Env, now: Date): Promise<void> {
 	const fresh = guids.filter((g) => !seen.has(g)).slice(0, MAX_PER_RUN);
 
 	const batch: Processed[] = [];
+	let deferred = 0;
 	for (const guid of fresh) {
 		const item = itemFor(feed.xml, guid);
 		if (!item) continue;
-		batch.push({ item, events: await extract(env.AI, item) });
+		const events = await extract(env.AI, item);
+		if (events === null) {
+			deferred++; // LLM failed: leave unsaved so next run retries
+			continue;
+		}
+		batch.push({ item, events });
 	}
 	const changed = await save(env.DB, batch);
 
 	// ETag only when everything new was handled; else retry next run.
-	if (feed.etag && guids.filter((g) => !seen.has(g)).length <= MAX_PER_RUN) {
+	if (feed.etag && deferred === 0 && guids.filter((g) => !seen.has(g)).length <= MAX_PER_RUN) {
 		await env.DB.prepare("INSERT OR REPLACE INTO kv (key, value) VALUES ('feed_etag', ?)")
 			.bind(feed.etag)
 			.run();

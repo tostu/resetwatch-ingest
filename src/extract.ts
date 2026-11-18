@@ -17,6 +17,15 @@ const MON = `(?:${MONTHS}|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\\.?`
 const RANGE = new RegExp(`(${MON})\\s+(\\d{1,2})\\s*(?:-|–|—|to)\\s*(?:(${MON})\\s+)?(\\d{1,2})`, 'i');
 const SINGLE = new RegExp(`(${MON})\\s+(\\d{1,2})(?:st|nd|rd|th)?(?:,?\\s+(\\d{4}))?`, 'i');
 
+/**
+ * Cheap pre-filter before the LLM. Keywords, or an explicit month-day range
+ * ("November 3-December 7"): some event posts ("Excavation Initiative") use none of the keywords.
+ */
+export function passesGate(item: FeedItem): boolean {
+	const s = item.title + ' ' + item.text;
+	return KEYWORD_GATE.test(s) || RANGE.test(s);
+}
+
 function monthIndex(s: string): number {
 	const k = s.slice(0, 3).toLowerCase();
 	return ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'].indexOf(k);
@@ -46,7 +55,7 @@ function eventName(title: string): string {
 
 /** Regex-only extraction. Returns [] when nothing found. */
 export function regexExtract(item: FeedItem): ExtractedEvent[] {
-	if (!KEYWORD_GATE.test(item.title + ' ' + item.text)) return [];
+	if (!passesGate(item)) return [];
 	const pub = new Date(item.pubDate);
 	const kind = classify(item.title);
 	const name = eventName(item.title);
@@ -145,7 +154,38 @@ export function validateLlm(raw: unknown, pub: Date): ExtractedEvent[] {
 	return out;
 }
 
-export async function llmExtract(ai: Ai, item: FeedItem): Promise<ExtractedEvent[]> {
+/* ---------- clef-flash gate ---------- */
+
+export const CLEF_MODEL = '@cf/cloudflare/clef-flash';
+/** Low on purpose: gate favors recall; llama + validateLlm reject false positives. */
+export const CLEF_THRESHOLD = 0.2;
+
+/** Does the post plausibly announce a dated season/event? Fails open (true) on any error. */
+export async function clefGate(ai: Ai, item: FeedItem): Promise<boolean> {
+	try {
+		const res = (await ai.run(CLEF_MODEL as keyof AiModels, {
+			model: 'clef-flash',
+			state: `Published ${item.pubDate}\nTitle: ${item.title}\n\n${item.text.slice(0, 6000)}`,
+			questions: {
+				dated: {
+					type: 'noul',
+					instructions:
+						'Does this Overwatch news post announce a season start/end or a limited-time event, challenge, or promotion that runs on specific dates?'
+				}
+			}
+		} as never)) as { answers?: { dated?: { noul?: unknown } } };
+		const p = res.answers?.dated?.noul;
+		return typeof p === 'number' ? p >= CLEF_THRESHOLD : true;
+	} catch (err) {
+		console.error('clef gate failed, failing open', {
+			message: err instanceof Error ? err.message : String(err)
+		});
+		return true;
+	}
+}
+
+/** null = LLM call failed (retry later); [] = LLM ran and found nothing. */
+export async function llmExtract(ai: Ai, item: FeedItem): Promise<ExtractedEvent[] | null> {
 	const prompt =
 		`Post published ${item.pubDate}. Title: ${item.title}\n\n${item.text.slice(0, 6000)}\n\n` +
 		'Extract Overwatch season starts/ends and limited-time events with dates. ' +
@@ -171,13 +211,21 @@ export async function llmExtract(ai: Ai, item: FeedItem): Promise<ExtractedEvent
 				promptChars: prompt.length,
 				message: err instanceof Error ? err.message : String(err)
 			});
-		return [];
+		return null;
 	}
 }
 
-export async function extract(ai: Ai, item: FeedItem): Promise<ExtractedEvent[]> {
-	if (!KEYWORD_GATE.test(item.title + ' ' + item.text)) return [];
+/**
+ * Returns null when the post should be retried next run (LLM failed and regex found nothing).
+ * Cheap keyword/range gate first; clef-flash only for posts that miss it.
+ */
+export async function extract(ai: Ai, item: FeedItem): Promise<ExtractedEvent[] | null> {
+	const cheap = passesGate(item);
+	if (!cheap && !(await clefGate(ai, item))) return [];
 	// LLM first so names get cleaned; regex is the fallback.
 	const viaLlm = await llmExtract(ai, item);
-	return viaLlm.length ? viaLlm : regexExtract(item);
+	if (viaLlm?.length) return viaLlm;
+	const viaRegex = regexExtract(item); // gated internally
+	if (viaLlm === null && viaRegex.length === 0) return null;
+	return viaRegex;
 }
