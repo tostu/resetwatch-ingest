@@ -2,7 +2,8 @@ CREATE TABLE IF NOT EXISTS posts (
 	guid TEXT PRIMARY KEY,
 	title TEXT NOT NULL,
 	published_at TEXT NOT NULL,
-	processed_at TEXT
+	processed_at TEXT,
+	url TEXT
 );
 
 CREATE TABLE IF NOT EXISTS events (
@@ -13,6 +14,13 @@ CREATE TABLE IF NOT EXISTS events (
 	starts_at TEXT NOT NULL,
 	ends_at TEXT,
 	raw_text TEXT,
+	-- One-sentence summary in our own words (LLM), never copied text.
+	summary TEXT,
+	-- JSON array of {label, value}, values grounded in the source text.
+	facts TEXT,
+	-- Deep link to the section on overwatch.blizzard.com the event came from.
+	source_url TEXT,
+	source_title TEXT,
 	UNIQUE (kind, name, starts_at)
 );
 

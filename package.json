@@ -10,7 +10,9 @@
 		"check": "wrangler types --check && tsc --noEmit",
 		"test": "vitest --run",
 		"db:schema:local": "wrangler d1 execute resetwatch --local --file=schema.sql",
-		"db:schema:remote": "wrangler d1 execute resetwatch --remote --file=schema.sql"
+		"db:schema:remote": "wrangler d1 execute resetwatch --remote --file=schema.sql",
+		"db:migrate:local": "wrangler d1 execute resetwatch --local --file=migrations/2026-11-23-event-details.sql",
+		"db:migrate:remote": "wrangler d1 execute resetwatch --remote --file=migrations/2026-11-23-event-details.sql"
 	},
 	"devDependencies": {
 		"typescript": "^6.0.3",
