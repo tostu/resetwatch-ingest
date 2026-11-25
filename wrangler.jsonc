@@ -16,7 +16,8 @@
 	"ai": { "binding": "AI" },
 	"version_metadata": { "binding": "CF_VERSION_METADATA" },
 	"vars": {
-		"FEED_URL": "https://store.steampowered.com/feeds/news/app/2357570/"
+		"NEWS_URL": "https://overwatch.blizzard.com/en-us/news/",
+		"PATCH_NOTES_URL": "https://overwatch.blizzard.com/en-us/news/patch-notes/"
 	},
 	"observability": { "enabled": true }
 }
